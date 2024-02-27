@@ -2925,6 +2925,7 @@ void Tree::Death() {
 //! - New v.2.1 threshold of maturity is defined as a size threshold (and not age as before), following Wright et al 2005 JTE
 void Tree::DisperseSeed(){
   if(t_dbh >= t_dbhmature){
+    if(t_site==15) Rcout << "la masse des graines de l'arbre " << S[t_sp_lab].s_seedmass << endl ; // test dev Audrey
     int nbs;
     if(_SEEDTRADEOFF) nbs=int(t_NPP*2.0*falloccanopy*0.08*0.5*(S[t_sp_lab].s_iseedmass)); //some multiplications could be avoided in this line.
     else nbs=nbs0*t_multiplier_seed;
@@ -3633,7 +3634,7 @@ void trollCpp(
   if(_FromInventory == 1){
     snprintf(inputfile_inventory,sizeof(inputfile_inventory),"%s",bufi_data);
   }
-  
+
   // v.3.1: removed par output, because no single parameter sheet provided anymore (in future all separate parameter sheets could be provided as outputs as well
   ReadInputGeneral(); // v.3.1 has to be done before initialisation of random number generators (_NONRANDOM)
   // Stuff for constant number generator

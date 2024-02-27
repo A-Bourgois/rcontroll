@@ -3,6 +3,7 @@ test_that("cpp", {
   data("TROLLv3_species")
   data("TROLLv3_climatedaytime12")
   data("TROLLv3_daytimevar")
+  data("TROLLv3_output")
   sim <- rcontroll:::.troll_child(
     name = "test",
     global = generate_parameters(
@@ -12,7 +13,8 @@ test_that("cpp", {
     species = TROLLv3_species,
     climate = TROLLv3_climatedaytime12,
     daily = TROLLv3_daytimevar,
-    verbose = FALSE
+    forest = get_forest(TROLLv3_output),
+    verbose = TRUE
   )
   expect_s4_class(sim, "trollsim")
 })
