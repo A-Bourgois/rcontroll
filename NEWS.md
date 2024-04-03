@@ -1,3 +1,6 @@
+# Audrey V1
+- ajout de t_fecundity à partir du code de Bruno sur R et en C, avec création du ifdef et de la macro _AUDREY dans VSC
+
 # rcontroll 0.1.1.9002
 
 - lidr fig

@@ -88,6 +88,7 @@
 #' @param OUTPUT_extended num. extended set of ouput files (0,1).
 #' @param extent_visual num. extent for visualization output. Unactivated when
 #'   equal 0.
+#' @param AUDREY num. active le module Audrey (0;1) pour la taille des graines
 #'
 #' @return A data frame of global parameters.
 #'
@@ -159,7 +160,8 @@ generate_parameters <- function(cols = 200,
                                 SEEDTRADEOFF = 0, # nolint
                                 CROWN_MM = 0, # nolint
                                 OUTPUT_extended = 1, # nolint
-                                extent_visual = 0) {
+                                extent_visual = 0, 
+                                AUDREY = 1) {
   # check args
   if (!all(unlist(lapply(
     list(
@@ -204,7 +206,7 @@ generate_parameters <- function(cols = 200,
       "m", "m1", "Cair", "_LL_parameterization",
       "_LA_regulation", "_sapwood", "_seedsadditional",
       "_NONRANDOM", "Rseed", "_GPPcrown", "_BASICTREEFALL", "_SEEDTRADEOFF",
-      "_CROWN_MM", "_OUTPUT_extended", "extent_visual"
+      "_CROWN_MM", "_OUTPUT_extended", "extent_visual", "_AUDREY"
     ),
     value = c(
       cols, rows, HEIGHT, length_dcell, nbiter, iterperyear,
@@ -218,7 +220,7 @@ generate_parameters <- function(cols = 200,
       m, m1, Cair, LL_parameterization, LA_regulation,
       sapwood, seedsadditional,
       NONRANDOM, Rseed, GPPcrown, BASICTREEFALL, SEEDTRADEOFF,
-      CROWN_MM, OUTPUT_extended, extent_visual
+      CROWN_MM, OUTPUT_extended, extent_visual, AUDREY
     ),
     description = c(
       "/* nb of columns */",
@@ -283,7 +285,8 @@ generate_parameters <- function(cols = 200,
       "/* if defined: the number of seeds produced is determined by NPP allocated to reproduction and seed mass, otherwise the number of seeds is fixed */", # nolint
       "/* Michaelis Menten allometry for crowns instead of power law, parameters have to be changed in other input sheets accordingly */", # nolint
       "/* extended set of ouput files */",
-      "/* extent for visualization output *"
+      "/* extent for visualization output */",
+      "/* active le module Audrey (0;1) pour la taille des graines*/"
     )
   )
 }

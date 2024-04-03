@@ -42,6 +42,8 @@ using namespace Rcpp;   // is there not a potential problem with "using namespac
  */
 //////////////////////////////////////////////////////////////////////////////////
 
+#define Audrey //!< premières simulations >
+
 #define LCP_alternative  //!< new in v.3.1.4: new way of checking whether light environment supports tree birth, dependent on individual seed/seedling's intraspecific variation >
 #undef MPI               //!< MPI = Message Passing Interface. Software for sharing information across processors in parallel computers. If global variable MPI is not defined, TROLL functions on one processor only. if flag MPI defined, parallel routines (MPI software) are switched on. WARNING!!!: MPI has not been maintained since v.2.2, several functions need updating
 #undef WATER             //!< new in v.3.0: If defined, an explicit water cycle is added, with an explicit belowground space. The horizontal resolution of the soil field is currently set by DCELL
@@ -129,6 +131,7 @@ bool _FromInventory;      //!< User control: if defined, an additional input fil
 bool _sapwood;         //!< User control: two ways of parameterising sapwood density: constant thickness (0), Fyllas, but with lower limit (1)
 bool _seedsadditional; //!< User control: excess carbon into seeds? no/yes=(0/1)
 bool _LL_parameterization;   //!< User control: two ways for parameterising leaf lifespan: empirical (derived by Sylvain Schmitt, TODO: from which data?), Kikuzawa model (0,1)
+bool _AUDREY;  //!< User control: à compléter no/yes = 0/1
 
 int _LA_regulation;     //!< User control: updated v.3.1: potentially three ways of parameterising leaf dynamic allocation, but currently using only two ways: no regulation (0), never exceed LAImax, i.e. the maximum LAI under full sunlight (1), adjust LAI to the current light environment (2). To switch between option 1 and 2, only one line is necessary in CalcLAmax()
 int _OUTPUT_pointcloud;  //!<User control: ATTENTION! At the moment assumes a little-endian system (most personal computers, but not necessarily server systems), because LAS fles are in little-endian! If == 1, creates a point cloud from a simplified ALS simulation;
@@ -705,6 +708,11 @@ public:
   float t_LAI;         //!< Total leaf area index (m^2/m^2), t_LAI replaces t_dens and average crown leaf density. LAI can be converted into densities; LAI is more relevant given the new dynamic leaf module, and also more informative as output variable; v.2.5
   float t_litter;      //!< Tree litterfall at each timestep, in dry mass (g); v.2.2
   
+#ifdef Audrey
+ float t_fecundity; // Fecundity in number of seeds/year per mm2 of reproductive basal area (following Visser et al. 2016)
+ float t_ds; //Tree-level maximum dispersal distance considering 's_maxDD' and the actual tree height, to account for the effect of seed release height in addition to species-level traits, as in Tamme et al. 2014
+#endif
+
   vector<float> t_NDDfield;   //!< Tree field useful when option _NDD is activated
   
 #ifdef WATER
@@ -970,6 +978,13 @@ void Tree::Birth(int nume, int site0) {
     UpdateCR();
     UpdateCD();
     
+#ifdef Audrey
+    if(_AUDREY){
+      t_fecundity = (exp(-4.234 + (-1.223*log10(S[t_sp_lab].s_seedmass/1000)) + (0.108*t_wsg) + (-0.0005*t_LMA) + (-0.0564*log10(t_dbhmax*1000))));//following Visser et al. 2016, number of seeds per mm2 of basal area, as calculated in 'nbs' (seed mass and dbhmax are transformed to g and mm, respectively)
+    }
+
+#endif
+
     t_CrownDisplacement = 0;
     
     if(_BASICTREEFALL) t_Ct = CalcCt();
@@ -1410,6 +1425,12 @@ int Tree::BirthFromInventory(int site, vector<string> &parameter_names, vector<s
     //*## Calculate derived traits ##*/
     //*##############################*/
     
+#ifdef Audrey
+  if(_AUDREY){
+    t_fecundity = (exp(-4.234 + (-1.223*log10(S[t_sp_lab].s_seedmass/1000)) + (0.108*t_wsg) + (-0.0005*t_LMA) + (-0.0564*log10(t_dbhmax*1000))));//following Visser et al. 2016, number of seeds per mm2 of basal area, as calculated in 'nbs' (seed mass and dbhmax are transformed to g and mm, respectively)
+  }
+#endif
+
     if(_BASICTREEFALL){
       parameter_name = "Ct";
       parameter_value = GetParameter(parameter_name, parameter_names, parameter_values);
@@ -2925,11 +2946,25 @@ void Tree::Death() {
 //! - New v.2.1 threshold of maturity is defined as a size threshold (and not age as before), following Wright et al 2005 JTE
 void Tree::DisperseSeed(){
   if(t_dbh >= t_dbhmature){
+    
     if(t_site==15) Rcout << "la masse des graines de l'arbre " << S[t_sp_lab].s_seedmass << endl ; // test dev Audrey
     int nbs;
+
+#ifdef Audrey
+  if(_AUDREY){
+    //nbs=int (785000*t_dbh*t_dbh*t_fecundity);//following Visser et al., dbh should be in mm. 7854=pi*0.5*0.5*1000*1000 (i.e. pi*r2, with r in mm = dbh*1000/2)
+    nbs=471000*t_dbh*t_dbh*t_fecundity;//same as commented above, but only 60% of seeds produced to account for 40% of pre-dispersal seed predation sensu Jackson et al. 2022
+  } else{
     if(_SEEDTRADEOFF) nbs=int(t_NPP*2.0*falloccanopy*0.08*0.5*(S[t_sp_lab].s_iseedmass)); //some multiplications could be avoided in this line.
     else nbs=nbs0*t_multiplier_seed;
     //else nbs=int(t_NPP*2*falloccanopy*0.08*0.5); // test 17/01/2017: use a factor to translate NPP into seeds produced, but not species specific, not linked to mass of grains
+  }
+    #else
+    if(_SEEDTRADEOFF) nbs=int(t_NPP*2.0*falloccanopy*0.08*0.5*(S[t_sp_lab].s_iseedmass)); //some multiplications could be avoided in this line.
+    else nbs=nbs0*t_multiplier_seed;
+    //else nbs=int(t_NPP*2*falloccanopy*0.08*0.5); // test 17/01/2017: use a factor to translate NPP into seeds produced, but not species specific, not linked to mass of grains
+#endif
+
     for(int i=0;i<nbs;i++){
       // Loop over number of produced seeds
       //float rho = 2.0*((t_s->s_ds)+t_CR)*float(sqrt(fabs(log(gsl_rng_uniform(gslrng)*iPi))));    //! s_ds is mean seed dispersal distance. Dispersal distance rho: P(rho) = rho*exp(-rho^2)
@@ -3690,7 +3725,8 @@ void trollCpp(
   if(_OUTPUT_extended == 1) Rcout << "Activated Module: OUTPUT_extended" << endl;
   if(_OUTPUT_extended == 1 && extent_visual > 0) Rcout << "Activated visualization output." << endl;
   if(_OUTPUT_pointcloud == 1) Rcout << "Activated Module: Point cloud output (simplified ALS simulation)" << endl; // v.3.1.6
-  
+  if(_AUDREY == 1) Rcout << "Activated Module: AUDREY" << endl;
+
   //!*********************
   //!** Evolution loop  **
   //!*********************
@@ -3972,7 +4008,10 @@ void AssignValueGlobal(string parameter_name, string parameter_value){
     SetParameter(parameter_name, parameter_value, _OUTPUT_extended, bool(0), bool(1), bool(0), quiet);
   } else if(parameter_name == "extent_visual"){
     SetParameter(parameter_name, parameter_value, extent_visual, 0, INT_MAX, 0, quiet);
+  } else if(parameter_name == "_AUDREY"){
+    SetParameter(parameter_name, parameter_value, _AUDREY, bool(0), bool(1), bool(0), quiet);
   }
+
   
   // !!!: TODO, implement NDD parameters
   // if (_NDD) {
@@ -4040,8 +4079,8 @@ void AssignValuePointcloud(string parameter_name, string parameter_value){
 void ReadInputGeneral(){
   fstream In(inputfile, ios::in);
   if(In){
-    string parameter_names[62] = {"cols","rows","HEIGHT","length_dcell","nbiter","NV","NH","nbout","p_nonvert","SWtoPPFD","klight","absorptance_leaves","theta","phi","g1","vC","DBH0","H0","CR_min","CR_a","CR_b","CD_a","CD_b","CD0","shape_crown","dens","fallocwood","falloccanopy","Cseedrain","nbs0","sigma_height","sigma_CR","sigma_CD","sigma_P","sigma_N","sigma_LMA","sigma_wsg","sigma_dbhmax","corr_CR_height","corr_N_P","corr_N_LMA","corr_P_LMA","leafdem_resolution","p_tfsecondary","hurt_decay","crown_gap_fraction","m","m1","Cair","_LL_parameterization","_LA_regulation","_sapwood","_seedsadditional","_NONRANDOM","Rseed","_GPPcrown","_BASICTREEFALL","_SEEDTRADEOFF","_NDD","_CROWN_MM","_OUTPUT_extended","extent_visual"};
-    int nb_parameters = 62;
+    string parameter_names[63] = {"cols","rows","HEIGHT","length_dcell","nbiter","NV","NH","nbout","p_nonvert","SWtoPPFD","klight","absorptance_leaves","theta","phi","g1","vC","DBH0","H0","CR_min","CR_a","CR_b","CD_a","CD_b","CD0","shape_crown","dens","fallocwood","falloccanopy","Cseedrain","nbs0","sigma_height","sigma_CR","sigma_CD","sigma_P","sigma_N","sigma_LMA","sigma_wsg","sigma_dbhmax","corr_CR_height","corr_N_P","corr_N_LMA","corr_P_LMA","leafdem_resolution","p_tfsecondary","hurt_decay","crown_gap_fraction","m","m1","Cair","_LL_parameterization","_LA_regulation","_sapwood","_seedsadditional","_NONRANDOM","Rseed","_GPPcrown","_BASICTREEFALL","_SEEDTRADEOFF","_NDD","_CROWN_MM","_OUTPUT_extended","extent_visual","_AUDREY"};
+    int nb_parameters = 63;
     vector<string> parameter_values(nb_parameters,"");
     
     Rcout << endl << "Reading in file: " << inputfile << endl;

@@ -66,7 +66,8 @@ generate_parameters(
   SEEDTRADEOFF = 0,
   CROWN_MM = 0,
   OUTPUT_extended = 1,
-  extent_visual = 0
+  extent_visual = 0,
+  AUDREY = 1
 )
 }
 \arguments{
@@ -215,6 +216,8 @@ law, parameters have to be changed in other input sheets accordingly (0,1).}
 
 \item{extent_visual}{num. extent for visualization output. Unactivated when
 equal 0.}
+
+\item{AUDREY}{num. active le module Audrey (0;1) pour la taille des graines}
 }
 \value{
 A data frame of global parameters.
