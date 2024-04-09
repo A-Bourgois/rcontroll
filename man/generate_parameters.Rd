@@ -67,7 +67,9 @@ generate_parameters(
   CROWN_MM = 0,
   OUTPUT_extended = 1,
   extent_visual = 0,
-  AUDREY = 1
+  fecundity = 1,
+  Rrecruit = 1,
+  distdisperse = 1
 )
 }
 \arguments{
@@ -217,7 +219,11 @@ law, parameters have to be changed in other input sheets accordingly (0,1).}
 \item{extent_visual}{num. extent for visualization output. Unactivated when
 equal 0.}
 
-\item{AUDREY}{num. active le module Audrey (0;1) pour la taille des graines}
+\item{fecundity}{num. active le module fecundity (0;1) simulating tree species fecundity following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)}
+
+\item{Rrecruit}{num. active le module Rrecruit (0;1) simulating establishment rate following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)}
+
+\item{distdisperse}{num. active le module distdisperse (0;1) simulating dispersal distance controlling the dispersion maximum by seed mass and tree height (Tamme et al. 2014) (developped in v3.1.5 by Bruno)}
 }
 \value{
 A data frame of global parameters.

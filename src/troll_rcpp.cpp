@@ -131,7 +131,10 @@ bool _FromInventory;      //!< User control: if defined, an additional input fil
 bool _sapwood;         //!< User control: two ways of parameterising sapwood density: constant thickness (0), Fyllas, but with lower limit (1)
 bool _seedsadditional; //!< User control: excess carbon into seeds? no/yes=(0/1)
 bool _LL_parameterization;   //!< User control: two ways for parameterising leaf lifespan: empirical (derived by Sylvain Schmitt, TODO: from which data?), Kikuzawa model (0,1)
-bool _AUDREY;  //!< User control: à compléter no/yes = 0/1
+bool _fecundity;  //!< User control: simulating tree species fecundity following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno) (no/yes = 0/1)
+bool _Rrecruit;  //!< User control: simulating establishment rate by controlling the recrutment by seed mass following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno) (no/yes = 0/1)
+bool _distdisperse;  //!< User control: simulating dispersion distance by controlling the dispersion maximum by seed mass and tree height (Tamme et al. 2014) (developped in v3.1.5 by Bruno) (no/yes = 0/1)
+
 
 int _LA_regulation;     //!< User control: updated v.3.1: potentially three ways of parameterising leaf dynamic allocation, but currently using only two ways: no regulation (0), never exceed LAImax, i.e. the maximum LAI under full sunlight (1), adjust LAI to the current light environment (2). To switch between option 1 and 2, only one line is necessary in CalcLAmax()
 int _OUTPUT_pointcloud;  //!<User control: ATTENTION! At the moment assumes a little-endian system (most personal computers, but not necessarily server systems), because LAS fles are in little-endian! If == 1, creates a point cloud from a simplified ALS simulation;
@@ -363,8 +366,13 @@ unsigned int *n_seed(0);    //!< Global vector: number of seeds distributed on e
 double *p_species(0);       //!< Global vector: relative frequency of species (not normalised, as it is normalised by the gsl multinomial function)
 unsigned int *n_species(0); //!< Global vector: number of seeds assigned to each species
 
-int    *SPECIES_GERM (0); //!< Global vector: !!!TO_DOCUMENT
+unsigned int    *SPECIES_GERM (0); //!< Global vector: !!!TO_DOCUMENT modif Audrey int -> unsigned int
 float  *PROB_S (0); //!< Global vector: !!!TO_DOCUMENT _SEEDTRADEOFF
+
+#ifdef Audrey
+double *prob_recruit (0); //!< Global vector: probability of recruitement implemented in v3.1.5 by Bruno, modif Audrey
+#endif
+
 
 // point cloud output, v.3.1.6
 float mean_beam_pc; // the mean number of shots per m2 for the point cloud sampling
@@ -587,6 +595,12 @@ public:
   //float s_output_field[12];         // scalar output fields, deprecated since v.3.1, replaced by actual sumstats for readability/code accessibility
   float s_sum1, s_sum10, s_sum30, s_ba, s_ba10, s_agb, s_gpp, s_npp, s_rday, s_rnight, s_rstem, s_litterfall; // species level summary statistics, to be provided to output streams
   
+#ifdef Audrey
+    float s_recruit_rate; //Species recruitment rates according to Visser et al. 2016, to calculate the probability of recruitment based on species traits: s_seedmass, s_wsg, s_dbhmax and s_LMA (in addition to the relative number of seeds of a given species in a given site). Modif Audrey
+    int s_DispSynd;//Species dispersal syndrome (vertebrate = 0, ant = 1, wind = 2, ballistic = 3), to predict seed dispersal distances following Tamme et al 2014. Modif Audrey
+    float s_maxDD;//Maximum (species-level) seed dispersal distance (m) according to Tamme et al, based on s_seedmass and s_DispSynd - the effect of tree height is accounted for in "t_ds" based on actual tree height. Modif Audrey
+#endif
+
   float s_tlp;            //!< Leaf water potential at turgor loss point (MPa); defined for consistency when WATER is deactivated
 #ifdef WATER // Some of these parameters may include intraspecific variability, as in v.2.4.1.
   //float s_g1;                  // parameter of stomatal conductance model. I went back to a species-specific value of g1 using Lin et al. 2015 relationship or Wu et al. 2019 GCB. It seems needed to well simulate functional shift through a regeneration. Different values of g1 across PFT are also used by Xu et al. 2016 New Phytologist using ED2+SPA on tropical dry forest. See also Domingues, Martinelli, & Ehleringer (2014) and Franks et al. (2018) for values of g1 for an Amazonian forest or potential alternative parameterization of g1 respectively
@@ -630,10 +644,41 @@ void Species::Init() {
   // !!!: WARNING! seed volume is provided instead of seed mass
   // We assume a conversion factor of 1.0 from wet volume to wet mass (~density of water)
   // We assume a conversion factor of 0.4 from wet mass to dry mass (~40% of the seed are water)
+  
+#ifdef Audrey
+
+  if(_Rrecruit){
+    s_recruit_rate = exp(4.33 + (1.428*(log10(s_seedmass/1000))) + (0.098*s_wsg) + (-0.000013*s_LMA) + (-2.421*(log10(s_dbhmax*1000))))/(1+(exp(4.33 + (1.428*log10(s_seedmass/1000)) + (0.098*s_wsg) + (-0.000013*s_LMA) + (-2.421*(log10(s_dbhmax*1000))))));
+    //Best averaged model for seedling establishment from Visser et al. 2016, after unstandardize variables and so change associated intercept/coefficients. Transformation of s_seedmass and s_dbhmax is applied for units consistency. Transformation of y (=exp(y)/1+exp(y)) is the inverse of the logit function as provided by the authors.
+  } 
+
+  if(_distdisperse){
+    //Define below s_maxDD (log10 of maximum dispersal distance) for different s_DispSynd - Model 2 provided by Tamme et al. 2014. In addition to species-level 'seed mass', 'dispersal syndrome' and 'growth form' (the 0.76 term below refers to the coefficient for 'Trees'), it also consider 'seed release height', which is accounted for later in 't_ds', based on the actual tree height.
+    if(s_DispSynd == 0){//s_Dispsynd = 0 indicates animal-dispersed species which is the baseline level, so no coefficient
+        s_maxDD = 2.19 + 0.76 + (-0.32*log10(s_seedmass));
+    }
+
+    if(s_DispSynd == 1){//=ant-dispersed sp
+        s_maxDD = 2.19 - 0.72 + 0.76 + (-0.32*log10(s_seedmass));
+    }
+
+    if(s_DispSynd == 2){//=wind-dispersed sp
+        s_maxDD = 2.19 - 1.03 + 0.76 + (-0.32*log10(s_seedmass));
+    }
+
+    if(s_DispSynd == 3){//=ballistic-dispersed sp
+        s_maxDD = 2.19 - 1.43 + 0.76 + (-0.32*log10(s_seedmass));
+    }
+  }
+
+#else
+
   s_seedmass *= 0.4;
   s_iseedmass=1.0/s_seedmass;
   s_ds=40.0; // !!!UPDATE
-  
+
+#endif
+
   if(_SEEDTRADEOFF) s_nbext = (int(s_regionalfreq*Cseedrain*s_iseedmass)+1);
   else s_nbext = int(s_regionalfreq*Cseedrain*(sites*LH*LH/10000));
   
@@ -709,8 +754,8 @@ public:
   float t_litter;      //!< Tree litterfall at each timestep, in dry mass (g); v.2.2
   
 #ifdef Audrey
- float t_fecundity; // Fecundity in number of seeds/year per mm2 of reproductive basal area (following Visser et al. 2016)
- float t_ds; //Tree-level maximum dispersal distance considering 's_maxDD' and the actual tree height, to account for the effect of seed release height in addition to species-level traits, as in Tamme et al. 2014
+ float t_fecundity; // Fecundity in number of seeds/year per mm2 of reproductive basal area (following Visser et al. 2016). Modif Audrey
+ float t_ds; //Tree-level maximum dispersal distance considering 's_maxDD' and the actual tree height, to account for the effect of seed release height in addition to species-level traits, as in Tamme et al. 2014. Modif Audrey
 #endif
 
   vector<float> t_NDDfield;   //!< Tree field useful when option _NDD is activated
@@ -979,7 +1024,7 @@ void Tree::Birth(int nume, int site0) {
     UpdateCD();
     
 #ifdef Audrey
-    if(_AUDREY){
+    if(_fecundity){
       t_fecundity = (exp(-4.234 + (-1.223*log10(S[t_sp_lab].s_seedmass/1000)) + (0.108*t_wsg) + (-0.0005*t_LMA) + (-0.0564*log10(t_dbhmax*1000))));//following Visser et al. 2016, number of seeds per mm2 of basal area, as calculated in 'nbs' (seed mass and dbhmax are transformed to g and mm, respectively)
     }
 
@@ -1426,7 +1471,7 @@ int Tree::BirthFromInventory(int site, vector<string> &parameter_names, vector<s
     //*##############################*/
     
 #ifdef Audrey
-  if(_AUDREY){
+  if(_fecundity){
     t_fecundity = (exp(-4.234 + (-1.223*log10(S[t_sp_lab].s_seedmass/1000)) + (0.108*t_wsg) + (-0.0005*t_LMA) + (-0.0564*log10(t_dbhmax*1000))));//following Visser et al. 2016, number of seeds per mm2 of basal area, as calculated in 'nbs' (seed mass and dbhmax are transformed to g and mm, respectively)
   }
 #endif
@@ -2951,7 +2996,7 @@ void Tree::DisperseSeed(){
     int nbs;
 
 #ifdef Audrey
-  if(_AUDREY){
+  if(_fecundity){
     //nbs=int (785000*t_dbh*t_dbh*t_fecundity);//following Visser et al., dbh should be in mm. 7854=pi*0.5*0.5*1000*1000 (i.e. pi*r2, with r in mm = dbh*1000/2)
     nbs=471000*t_dbh*t_dbh*t_fecundity;//same as commented above, but only 60% of seeds produced to account for 40% of pre-dispersal seed predation sensu Jackson et al. 2022
   } else{
@@ -2971,7 +3016,18 @@ void Tree::DisperseSeed(){
       //update 2.5: rho does not seem to correspond to original 1999 paper anymore and in previous version predicted dispersal with a lower cutoff instead of the Rayleigh distribution
       //here we restore the previous formulation by using the Rayleigh implementation from the gsl library
       //for the moment, we do not use the crown radius as an additional dispersal kernel. This would lead to a loss of large tree species locally, because they will have much less seeds within the plot
-      float rho = gsl_ran_rayleigh(gslrng, S[t_sp_lab].s_ds);
+      
+      float rho ;
+      if(_distdisperse){
+        t_ds = pow(10,(S[t_sp_lab].s_maxDD + 0.60*log10(t_height))); //following Tamme et al. - s_maxDD is defined before based on species avg traits, and here the effect of seed release height is took into account based on the actual tree height
+        rho = gsl_ran_rayleigh(gslrng, t_ds*0.41);//predicted seed dispersal kernels considering maximum dispersal distance (t_ds) according to Tamme et al. (2014) model as the 95th percentile of a Rayleigh distribution.
+        //Notes: the cumulative distribution function of the Rayleigh distribution, of parameter sigma s, is: F(x, s)= 1 - exp(-x^2/(2*s^2))
+        //If we define the maximal dispersal distance d (as provided by Tamme et al) as the distance below which a seed has 95% chance of being dispersed, then d, follows: F(d, s)=0.95 (by definition of the cumulative distribution function).
+        //So that: 1-exp(-d^2/(2*s^2)=0.95, which when developed, leads to: s= d/sqrt(-2*ln(0.05)) = 0.41* d
+      } else{
+        rho = gsl_ran_rayleigh(gslrng, S[t_sp_lab].s_ds);
+      }
+      
       float theta_angle = float(twoPi*gsl_rng_uniform(gslrng)); //Dispersal angle theta
       int col_tree = t_site%cols;
       int row_tree = t_site/cols;
@@ -3725,7 +3781,9 @@ void trollCpp(
   if(_OUTPUT_extended == 1) Rcout << "Activated Module: OUTPUT_extended" << endl;
   if(_OUTPUT_extended == 1 && extent_visual > 0) Rcout << "Activated visualization output." << endl;
   if(_OUTPUT_pointcloud == 1) Rcout << "Activated Module: Point cloud output (simplified ALS simulation)" << endl; // v.3.1.6
-  if(_AUDREY == 1) Rcout << "Activated Module: AUDREY" << endl;
+  if(_fecundity == 1) Rcout << "Activated Module: fecundity" << endl;
+  if(_Rrecruit == 1) Rcout << "Activated Module: recruit rate" << endl;
+  if(_distdisperse == 1) Rcout << "Activated Module: dispersal distance" << endl;
 
   //!*********************
   //!** Evolution loop  **
@@ -4008,8 +4066,12 @@ void AssignValueGlobal(string parameter_name, string parameter_value){
     SetParameter(parameter_name, parameter_value, _OUTPUT_extended, bool(0), bool(1), bool(0), quiet);
   } else if(parameter_name == "extent_visual"){
     SetParameter(parameter_name, parameter_value, extent_visual, 0, INT_MAX, 0, quiet);
-  } else if(parameter_name == "_AUDREY"){
-    SetParameter(parameter_name, parameter_value, _AUDREY, bool(0), bool(1), bool(0), quiet);
+  } else if(parameter_name == "_fecundity"){
+    SetParameter(parameter_name, parameter_value, _fecundity, bool(0), bool(1), bool(0), quiet);
+  } else if(parameter_name == "_Rrecruit"){
+    SetParameter(parameter_name, parameter_value, _Rrecruit, bool(0), bool(1), bool(0), quiet);
+  } else if(parameter_name == "_distdisperse"){
+    SetParameter(parameter_name, parameter_value, _distdisperse, bool(0), bool(1), bool(0), quiet);
   }
 
   
@@ -4051,6 +4113,8 @@ void AssignValueSpecies(Species &S, string parameter_name, string parameter_valu
     SetParameter(parameter_name, parameter_value, S.s_tlp, -10.0f, 0.0f, -2.0f, quiet);
   } else if(parameter_name == "s_drymass"){
     SetParameter(parameter_name, parameter_value, S.s_drymass, 0.0f, 100.0f, 0.5f, quiet);
+  } else if(parameter_name == "s_DispSynd"){
+    SetParameter(parameter_name, parameter_value, S.s_DispSynd, 0, 3, 0, quiet);
   }
 }
 
@@ -4079,8 +4143,8 @@ void AssignValuePointcloud(string parameter_name, string parameter_value){
 void ReadInputGeneral(){
   fstream In(inputfile, ios::in);
   if(In){
-    string parameter_names[63] = {"cols","rows","HEIGHT","length_dcell","nbiter","NV","NH","nbout","p_nonvert","SWtoPPFD","klight","absorptance_leaves","theta","phi","g1","vC","DBH0","H0","CR_min","CR_a","CR_b","CD_a","CD_b","CD0","shape_crown","dens","fallocwood","falloccanopy","Cseedrain","nbs0","sigma_height","sigma_CR","sigma_CD","sigma_P","sigma_N","sigma_LMA","sigma_wsg","sigma_dbhmax","corr_CR_height","corr_N_P","corr_N_LMA","corr_P_LMA","leafdem_resolution","p_tfsecondary","hurt_decay","crown_gap_fraction","m","m1","Cair","_LL_parameterization","_LA_regulation","_sapwood","_seedsadditional","_NONRANDOM","Rseed","_GPPcrown","_BASICTREEFALL","_SEEDTRADEOFF","_NDD","_CROWN_MM","_OUTPUT_extended","extent_visual","_AUDREY"};
-    int nb_parameters = 63;
+    string parameter_names[65] = {"cols","rows","HEIGHT","length_dcell","nbiter","NV","NH","nbout","p_nonvert","SWtoPPFD","klight","absorptance_leaves","theta","phi","g1","vC","DBH0","H0","CR_min","CR_a","CR_b","CD_a","CD_b","CD0","shape_crown","dens","fallocwood","falloccanopy","Cseedrain","nbs0","sigma_height","sigma_CR","sigma_CD","sigma_P","sigma_N","sigma_LMA","sigma_wsg","sigma_dbhmax","corr_CR_height","corr_N_P","corr_N_LMA","corr_P_LMA","leafdem_resolution","p_tfsecondary","hurt_decay","crown_gap_fraction","m","m1","Cair","_LL_parameterization","_LA_regulation","_sapwood","_seedsadditional","_NONRANDOM","Rseed","_GPPcrown","_BASICTREEFALL","_SEEDTRADEOFF","_NDD","_CROWN_MM","_OUTPUT_extended","extent_visual","_fecundity", "_Rrecruit", "_distdisperse"};
+    int nb_parameters = 65;
     vector<string> parameter_values(nb_parameters,"");
     
     Rcout << endl << "Reading in file: " << inputfile << endl;
@@ -4182,8 +4246,15 @@ void ReadInputSpecies(){
   if(InSpecies){
     // possible parameters to initialise vector<string> parameter_names{"s_name","s_LMA","s_Nmass","s_Pmass","s_wsg","s_dbhmax","s_hmax","s_ah","s_seedmass","s_regionalfreq","s_tlp","s_drymass"};
     //        int nb_parameters = int(parameter_names.size()); only works from C++11 onwards
-    string parameter_names[12] = {"s_name","s_LMA","s_Nmass","s_Pmass","s_wsg","s_dbhmax","s_hmax","s_ah","s_seedmass","s_regionalfreq","s_tlp","s_drymass"};
-    int nb_parameters = 12;
+
+  string parameter_names[12] = {"s_name","s_LMA","s_Nmass","s_Pmass","s_wsg","s_dbhmax","s_hmax","s_ah","s_seedmass","s_regionalfreq","s_tlp","s_drymass"};
+  int nb_parameters = 12;
+#ifdef Audrey
+  if(_distdisperse){
+    string parameter_names[11] = {"s_name","s_LMA","s_Nmass","s_Pmass","s_wsg","s_dbhmax","s_hmax","s_ah","s_seedmass","s_regionalfreq","s_DispSynd"};
+    int nb_parameters = 11;
+  }
+#endif
     
     // first get parameter names
     string line;
@@ -5249,7 +5320,18 @@ void AllocMem() {
         Rcerr<<"!!! Mem_Alloc\n";
     }
 #endif
-      if(NULL==(SPECIES_GERM=new int[nbspp+1])) Rcerr<<"!!! Mem_Alloc\n";  // Field for democratic seed germination
+      if(NULL==(SPECIES_GERM=new unsigned int[nbspp+1])) Rcerr<<"!!! Mem_Alloc\n";  // Field for democratic seed germination
+      
+#ifdef Audrey
+  if(_Rrecruit){
+    if(NULL==(prob_recruit=new double[nbspp+1])) cerr<<"!!! Mem_Alloc\n";
+    for(int spp=0;spp<=nbspp;spp++) {
+        SPECIES_GERM[spp] = 0;
+        prob_recruit[spp] = 0;
+    }
+  }   
+#endif      
+      
       if(NULL==(SPECIES_SEEDS=new int*[sites]))  Rcerr<<"!!! Mem_Alloc\n"; // Field of seeds
       for(int site=0;site<sites;site++){                          // For each processor, we define a stripe above (labelled 0) and a stripe below (1). Each stripe is SBORD in width.
         if (NULL==(SPECIES_SEEDS[site]=new int[nbspp+1]))       // ALL the sites need to be updated.
@@ -5690,22 +5772,44 @@ void FillSeed(int col, int row, int spp) {
 // Global function: tree germination module
 //#############################
 void RecruitTree(){
+
   for(int site=0;site<sites;site++) {  //**** Local germination ****
+
     if(T[site].t_age == 0.0) {
       int spp_withseeds = 0;
       for(int spp=1;spp<=nbspp;spp++){  // lists all the species with a seed present at given site...
-        if(SPECIES_SEEDS[site][spp] > 0) {
-          // write species that are present to an extra array
-          SPECIES_GERM[spp_withseeds]=spp;
-          spp_withseeds++;
+
+        if(_Rrecruit){
+          prob_recruit[spp] =  SPECIES_SEEDS[site][spp]*S[spp].s_recruit_rate;
+          if(prob_recruit[spp]>0) spp_withseeds++;
+        } else {
+          if(SPECIES_SEEDS[site][spp] > 0) {
+            // write species that are present to an extra array
+            SPECIES_GERM[spp_withseeds]=spp;
+            spp_withseeds++;
+          }
         }
-      }
-      if(spp_withseeds > 0) {  // ... and then randomly select one of these species
         
-        // since v.2.5: use gsl RNG instead of hardcoded RNGs
-        int spp_index = int(gsl_rng_uniform_int(gslrng,spp_withseeds));
-        int spp = SPECIES_GERM[spp_index];
-        // otherwise all species with seeds present are equiprobable
+        if(spp_withseeds > 0) {  // ... and then randomly select one of these species     
+          
+          if(_Rrecruit){
+
+            gsl_ran_multinomial(gslrng, nbspp+1, 1, prob_recruit, SPECIES_GERM);
+            int spp=0;
+            int sr=0;
+            while(spp<=nbspp && sr==0) {
+              if (SPECIES_GERM[spp]>0) sr=1;
+              else spp ++;
+            }
+            if (spp<=nbspp) SPECIES_GERM[spp]=0; // reinitilized SPECIES_GERM with zero, now that we have found which species is to be recruited (spp)
+
+          } else{
+            // since v.2.5: use gsl RNG instead of hardcoded RNGs
+            int spp_index = int(gsl_rng_uniform_int(gslrng,spp_withseeds));
+            int spp = SPECIES_GERM[spp_index];
+            // otherwise all species with seeds present are equiprobable
+          }
+        
 #ifdef LCP_alternative
         T[site].Birth(spp,site); // in this version, the light environment is checked within Birth() function
 #else
@@ -5719,6 +5823,7 @@ void RecruitTree(){
         if(flux>(S[spp].s_LCP))  T[site].Birth(spp,site);
 #endif
 #endif
+        }
       }
     }
   }

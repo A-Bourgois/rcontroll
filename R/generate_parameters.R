@@ -88,7 +88,9 @@
 #' @param OUTPUT_extended num. extended set of ouput files (0,1).
 #' @param extent_visual num. extent for visualization output. Unactivated when
 #'   equal 0.
-#' @param AUDREY num. active le module Audrey (0;1) pour la taille des graines
+#' @param fecundity num. active le module fecundity (0;1) simulating tree species fecundity following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)
+#' @param Rrecruit num. active le module Rrecruit (0;1) simulating establishment rate following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)
+#' @param distdisperse num. active le module distdisperse (0;1) simulating dispersal distance controlling the dispersion maximum by seed mass and tree height (Tamme et al. 2014) (developped in v3.1.5 by Bruno)
 #'
 #' @return A data frame of global parameters.
 #'
@@ -161,7 +163,9 @@ generate_parameters <- function(cols = 200,
                                 CROWN_MM = 0, # nolint
                                 OUTPUT_extended = 1, # nolint
                                 extent_visual = 0, 
-                                AUDREY = 1) {
+                                fecundity = 0, 
+                                Rrecruit = 0, 
+                                distdisperse = 0) {
   # check args
   if (!all(unlist(lapply(
     list(
@@ -206,7 +210,7 @@ generate_parameters <- function(cols = 200,
       "m", "m1", "Cair", "_LL_parameterization",
       "_LA_regulation", "_sapwood", "_seedsadditional",
       "_NONRANDOM", "Rseed", "_GPPcrown", "_BASICTREEFALL", "_SEEDTRADEOFF",
-      "_CROWN_MM", "_OUTPUT_extended", "extent_visual", "_AUDREY"
+      "_CROWN_MM", "_OUTPUT_extended", "extent_visual", "_fecundity", "_Rrecruit", "_distdisperse"
     ),
     value = c(
       cols, rows, HEIGHT, length_dcell, nbiter, iterperyear,
@@ -220,7 +224,7 @@ generate_parameters <- function(cols = 200,
       m, m1, Cair, LL_parameterization, LA_regulation,
       sapwood, seedsadditional,
       NONRANDOM, Rseed, GPPcrown, BASICTREEFALL, SEEDTRADEOFF,
-      CROWN_MM, OUTPUT_extended, extent_visual, AUDREY
+      CROWN_MM, OUTPUT_extended, extent_visual, fecundity, Rrecruit, distdisperse
     ),
     description = c(
       "/* nb of columns */",
@@ -286,7 +290,9 @@ generate_parameters <- function(cols = 200,
       "/* Michaelis Menten allometry for crowns instead of power law, parameters have to be changed in other input sheets accordingly */", # nolint
       "/* extended set of ouput files */",
       "/* extent for visualization output */",
-      "/* active le module Audrey (0;1) pour la taille des graines*/"
+      "/* active le module fecundity (0;1) simulating tree species fecundity following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/",
+      "/* active le module Rrecruit (0;1) simulating species establishment rate following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/",
+      "/* active le module distdisperse (0;1) simulating dispersal distance following seed mass, dispersal syndrom and tree height (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/"
     )
   )
 }
