@@ -163,9 +163,9 @@ generate_parameters <- function(cols = 200,
                                 CROWN_MM = 0, # nolint
                                 OUTPUT_extended = 1, # nolint
                                 extent_visual = 0, 
-                                fecundity = 0, 
-                                Rrecruit = 0, 
-                                distdisperse = 0) {
+                                fecundity = 1, 
+                                Rrecruit = 1, 
+                                distdisperse = 1) {
   # check args
   if (!all(unlist(lapply(
     list(

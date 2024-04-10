@@ -5772,44 +5772,43 @@ void FillSeed(int col, int row, int spp) {
 // Global function: tree germination module
 //#############################
 void RecruitTree(){
-
   for(int site=0;site<sites;site++) {  //**** Local germination ****
-
     if(T[site].t_age == 0.0) {
       int spp_withseeds = 0;
-      for(int spp=1;spp<=nbspp;spp++){  // lists all the species with a seed present at given site...
+      int spp=0;
+      int sr=0;
 
+      for(int spp=1;spp<=nbspp;spp++){  // lists all the species with a seed present at given site...
         if(_Rrecruit){
           prob_recruit[spp] =  SPECIES_SEEDS[site][spp]*S[spp].s_recruit_rate;
-          if(prob_recruit[spp]>0) spp_withseeds++;
+          if (prob_recruit[spp]>0) spp_withseeds++;  
         } else {
           if(SPECIES_SEEDS[site][spp] > 0) {
-            // write species that are present to an extra array
+          // write species that are present to an extra array
             SPECIES_GERM[spp_withseeds]=spp;
             spp_withseeds++;
           }
         }
-        
-        if(spp_withseeds > 0) {  // ... and then randomly select one of these species     
-          
-          if(_Rrecruit){
+      }
 
-            gsl_ran_multinomial(gslrng, nbspp+1, 1, prob_recruit, SPECIES_GERM);
-            int spp=0;
-            int sr=0;
-            while(spp<=nbspp && sr==0) {
-              if (SPECIES_GERM[spp]>0) sr=1;
-              else spp ++;
-            }
-            if (spp<=nbspp) SPECIES_GERM[spp]=0; // reinitilized SPECIES_GERM with zero, now that we have found which species is to be recruited (spp)
-
-          } else{
-            // since v.2.5: use gsl RNG instead of hardcoded RNGs
-            int spp_index = int(gsl_rng_uniform_int(gslrng,spp_withseeds));
-            int spp = SPECIES_GERM[spp_index];
-            // otherwise all species with seeds present are equiprobable
+      if(spp_withseeds > 0) {  // ... and then randomly select one of these species
+        if(_Rrecruit){
+          gsl_ran_multinomial(gslrng, nbspp+1, 1, prob_recruit, SPECIES_GERM);
+          spp=0;
+          sr=0;
+          while (spp<=nbspp && sr==0) {
+            if (SPECIES_GERM[spp]>0) {
+              sr=1;
+            } else spp ++;
           }
-        
+          if (spp<=nbspp) SPECIES_GERM[spp]=0; // reinitilized SPECIES_GERM with zero, now that we have found which species is to be recruited (spp)
+        } else {
+          // since v.2.5: use gsl RNG instead of hardcoded RNGs
+          int spp_index = int(gsl_rng_uniform_int(gslrng,spp_withseeds));
+          int spp = SPECIES_GERM[spp_index];
+          // otherwise all species with seeds present are equiprobable
+        }
+
 #ifdef LCP_alternative
         T[site].Birth(spp,site); // in this version, the light environment is checked within Birth() function
 #else
@@ -5823,8 +5822,8 @@ void RecruitTree(){
         if(flux>(S[spp].s_LCP))  T[site].Birth(spp,site);
 #endif
 #endif
-        }
       }
+
     }
   }
 }
