@@ -91,6 +91,7 @@
 #' @param fecundity num. active le module fecundity (0;1) simulating tree species fecundity following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)
 #' @param Rrecruit num. active le module Rrecruit (0;1) simulating establishment rate following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)
 #' @param distdisperse num. active le module distdisperse (0;1) simulating dispersal distance controlling the dispersion maximum by seed mass and tree height (Tamme et al. 2014) (developped in v3.1.5 by Bruno)
+#' @param torus num. active le module torus (0;1) implementing a torus
 #'
 #' @return A data frame of global parameters.
 #'
@@ -132,7 +133,7 @@ generate_parameters <- function(cols = 200,
                                 fallocwood = 0.35,
                                 falloccanopy = 0.25,
                                 Cseedrain = 50000, # nolint
-                                nbs0 = 10, # nolint
+                                nbs0 = 2250, # nolint
                                 sigma_height = 0,
                                 sigma_CR = 0, # nolint
                                 sigma_CD = 0, # nolint
@@ -165,7 +166,8 @@ generate_parameters <- function(cols = 200,
                                 extent_visual = 0, 
                                 fecundity = 1, 
                                 Rrecruit = 1, 
-                                distdisperse = 1) {
+                                distdisperse = 1, 
+                                torus = 1) {
   # check args
   if (!all(unlist(lapply(
     list(
@@ -210,7 +212,7 @@ generate_parameters <- function(cols = 200,
       "m", "m1", "Cair", "_LL_parameterization",
       "_LA_regulation", "_sapwood", "_seedsadditional",
       "_NONRANDOM", "Rseed", "_GPPcrown", "_BASICTREEFALL", "_SEEDTRADEOFF",
-      "_CROWN_MM", "_OUTPUT_extended", "extent_visual", "_fecundity", "_Rrecruit", "_distdisperse"
+      "_CROWN_MM", "_OUTPUT_extended", "extent_visual", "_fecundity", "_Rrecruit", "_distdisperse", "_torus"
     ),
     value = c(
       cols, rows, HEIGHT, length_dcell, nbiter, iterperyear,
@@ -224,7 +226,7 @@ generate_parameters <- function(cols = 200,
       m, m1, Cair, LL_parameterization, LA_regulation,
       sapwood, seedsadditional,
       NONRANDOM, Rseed, GPPcrown, BASICTREEFALL, SEEDTRADEOFF,
-      CROWN_MM, OUTPUT_extended, extent_visual, fecundity, Rrecruit, distdisperse
+      CROWN_MM, OUTPUT_extended, extent_visual, fecundity, Rrecruit, distdisperse, torus
     ),
     description = c(
       "/* nb of columns */",
@@ -292,7 +294,8 @@ generate_parameters <- function(cols = 200,
       "/* extent for visualization output */",
       "/* active le module fecundity (0;1) simulating tree species fecundity following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/",
       "/* active le module Rrecruit (0;1) simulating species establishment rate following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/",
-      "/* active le module distdisperse (0;1) simulating dispersal distance following seed mass, dispersal syndrom and tree height (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/"
+      "/* active le module distdisperse (0;1) simulating dispersal distance following seed mass, dispersal syndrom and tree height (Visser et al. 2016) (developped in v3.1.5 by Bruno)*/", 
+      "/* active le module torus (0;1) implementing a torus */"
     )
   )
 }
