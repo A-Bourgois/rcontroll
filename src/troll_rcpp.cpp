@@ -135,6 +135,9 @@ bool _fecundity;  //!< User control: simulating tree species fecundity following
 bool _Rrecruit;  //!< User control: simulating establishment rate by controlling the recrutment by seed mass following trait-based models (Visser et al. 2016) (developped in v3.1.5 by Bruno) (no/yes = 0/1)
 bool _distdisperse;  //!< User control: simulating dispersion distance by controlling the dispersion maximum by seed mass and tree height (Tamme et al. 2014) (developped in v3.1.5 by Bruno) (no/yes = 0/1)
 bool _torus; //!< User control: implementing a torus (no/yes = 0/1)
+bool _MinLAImax; //!< User control: option restrictive pour le filtrage par la lumière (no/yes = 0/1)
+bool _MaxLAImax; //!< User control: option peu restrictive pour le filtrage par la lumière (no/yes = 0/1)
+
 
 int _LA_regulation;     //!< User control: updated v.3.1: potentially three ways of parameterising leaf dynamic allocation, but currently using only two ways: no regulation (0), never exceed LAImax, i.e. the maximum LAI under full sunlight (1), adjust LAI to the current light environment (2). To switch between option 1 and 2, only one line is necessary in CalcLAmax()
 int _OUTPUT_pointcloud;  //!<User control: ATTENTION! At the moment assumes a little-endian system (most personal computers, but not necessarily server systems), because LAS fles are in little-endian! If == 1, creates a point cloud from a simplified ALS simulation;
@@ -370,6 +373,8 @@ unsigned int    *SPECIES_GERM (0); //!< Global vector: !!!TO_DOCUMENT modif Audr
 float  *PROB_S (0); //!< Global vector: !!!TO_DOCUMENT _SEEDTRADEOFF
 
 #ifdef Audrey
+float *MinLAImax (0);
+float *MaxLAImax (0);
 double *prob_recruit (0); //!< Global vector: probability of recruitement implemented in v3.1.5 by Bruno, modif Audrey
 #endif
 
@@ -3797,6 +3802,8 @@ void trollCpp(
   if(_Rrecruit == 1) Rcout << "Activated Module: recruit rate" << endl;
   if(_distdisperse == 1) Rcout << "Activated Module: dispersal distance" << endl;
   if(_torus == 1) Rcout << "Activated Module: torus" << endl;
+  if(_MinLAImax == 1) Rcout << "Activated Module: MinLAImax" << endl;
+  if(_MaxLAImax == 1) Rcout << "Activated Module: MaxLAImax" << endl;
 
   //!*********************
   //!** Evolution loop  **
@@ -4087,6 +4094,10 @@ void AssignValueGlobal(string parameter_name, string parameter_value){
     SetParameter(parameter_name, parameter_value, _distdisperse, bool(0), bool(1), bool(0), quiet);
   } else if(parameter_name == "_torus"){
     SetParameter(parameter_name, parameter_value, _torus, bool(0), bool(1), bool(0), quiet);
+  } else if(parameter_name == "_MinLAImax"){
+    SetParameter(parameter_name, parameter_value, _MinLAImax, bool(0), bool(1), bool(0), quiet);
+  } else if(parameter_name == "_MaxLAImax"){
+    SetParameter(parameter_name, parameter_value, _MaxLAImax, bool(0), bool(1), bool(0), quiet);
   }
 
   
@@ -4158,8 +4169,8 @@ void AssignValuePointcloud(string parameter_name, string parameter_value){
 void ReadInputGeneral(){
   fstream In(inputfile, ios::in);
   if(In){
-    string parameter_names[66] = {"cols","rows","HEIGHT","length_dcell","nbiter","NV","NH","nbout","p_nonvert","SWtoPPFD","klight","absorptance_leaves","theta","phi","g1","vC","DBH0","H0","CR_min","CR_a","CR_b","CD_a","CD_b","CD0","shape_crown","dens","fallocwood","falloccanopy","Cseedrain","nbs0","sigma_height","sigma_CR","sigma_CD","sigma_P","sigma_N","sigma_LMA","sigma_wsg","sigma_dbhmax","corr_CR_height","corr_N_P","corr_N_LMA","corr_P_LMA","leafdem_resolution","p_tfsecondary","hurt_decay","crown_gap_fraction","m","m1","Cair","_LL_parameterization","_LA_regulation","_sapwood","_seedsadditional","_NONRANDOM","Rseed","_GPPcrown","_BASICTREEFALL","_SEEDTRADEOFF","_NDD","_CROWN_MM","_OUTPUT_extended","extent_visual","_fecundity", "_Rrecruit", "_distdisperse", "_torus"};
-    int nb_parameters = 66;
+    string parameter_names[68] = {"cols","rows","HEIGHT","length_dcell","nbiter","NV","NH","nbout","p_nonvert","SWtoPPFD","klight","absorptance_leaves","theta","phi","g1","vC","DBH0","H0","CR_min","CR_a","CR_b","CD_a","CD_b","CD0","shape_crown","dens","fallocwood","falloccanopy","Cseedrain","nbs0","sigma_height","sigma_CR","sigma_CD","sigma_P","sigma_N","sigma_LMA","sigma_wsg","sigma_dbhmax","corr_CR_height","corr_N_P","corr_N_LMA","corr_P_LMA","leafdem_resolution","p_tfsecondary","hurt_decay","crown_gap_fraction","m","m1","Cair","_LL_parameterization","_LA_regulation","_sapwood","_seedsadditional","_NONRANDOM","Rseed","_GPPcrown","_BASICTREEFALL","_SEEDTRADEOFF","_NDD","_CROWN_MM","_OUTPUT_extended","extent_visual","_fecundity", "_Rrecruit", "_distdisperse", "_torus", "_MinLAImax", "_MaxLAImax"};
+    int nb_parameters = 68;
     vector<string> parameter_values(nb_parameters,"");
     
     Rcout << endl << "Reading in file: " << inputfile << endl;
@@ -4655,10 +4666,17 @@ void InitialiseLookUpLAImax(){
   float avgLAImax = 0.0;
   
   for(int spp = 1; spp < nbspp + 1; spp++){
+
+#ifdef Audrey 
+float minLAImax=10.0;
+float maxLAImax=0.0;
+#endif
+
+      
     for(int dev = 0; dev < 10000; dev++){
       Tree pseudotree;
       pseudotree.t_sp_lab = spp;
-      
+
       pseudotree.t_Pmass = S[spp].s_Pmass * d_intraspecific_P[dev];
       pseudotree.t_Nmass = S[spp].s_Nmass * d_intraspecific_N[dev];
       pseudotree.t_LMA = S[spp].s_LMA * d_intraspecific_LMA[dev];
@@ -4673,11 +4691,34 @@ void InitialiseLookUpLAImax(){
       if(pseudotree.t_LAImax < minLAImax) minLAImax = pseudotree.t_LAImax;
       if(pseudotree.t_LAImax > maxLAImax) maxLAImax = pseudotree.t_LAImax;
       avgLAImax += pseudotree.t_LAImax;
+
+#ifdef Audrey
+minLAImax = fminf(minLAImax, pseudotree.t_LAImax);
+maxLAImax = fmaxf(maxLAImax, pseudotree.t_LAImax);
+#endif
+
+#ifdef Audrey
+MinLAImax[spp]=minLAImax ;
+MaxLAImax[spp]=maxLAImax ;
+#endif
+}
     }
-  }
+
   
   avgLAImax *= 1.0/float(10000 * nbspp);
   Rcout << "Calculated LookUp table for LAImax. Min LAImax is: " << minLAImax << " | max LAImax is: " << maxLAImax << " avg LAImax is: " << avgLAImax << endl;
+Rcout << "MinLAImax: ";
+for(int spp = 1; spp < nbspp + 1; spp++){
+  Rcout << MinLAImax[spp] << "\t" ;
+}
+Rcout << endl;
+
+Rcout << "MaxLAImax: ";
+for(int spp = 1; spp < nbspp + 1; spp++){
+  Rcout << MaxLAImax[spp] << "\t" ;
+}
+Rcout << endl;
+
 }
 #endif
 
@@ -4801,6 +4842,17 @@ void InitialiseLookUpTables(){
   }
   
 #ifdef LCP_alternative
+
+#ifdef Audrey
+    if(NULL==(MinLAImax=new float[nbspp+1])) cerr<<"!!! Mem_Alloc\n";
+    if(NULL==(MaxLAImax=new float[nbspp+1])) cerr<<"!!! Mem_Alloc\n";
+
+    for(int spp=0;spp<=nbspp;spp++) {
+MaxLAImax[spp]=0.0;
+MinLAImax[spp]=10.0;
+
+    }
+#endif
   InitialiseLookUpLAImax();
 #endif
 }
@@ -5340,9 +5392,12 @@ void AllocMem() {
 #ifdef Audrey
   if(_Rrecruit){
     if(NULL==(prob_recruit=new double[nbspp+1])) cerr<<"!!! Mem_Alloc\n";
+
+
     for(int spp=0;spp<=nbspp;spp++) {
         SPECIES_GERM[spp] = 0;
         prob_recruit[spp] = 0;
+
     }
   }   
 #endif      
@@ -5796,8 +5851,12 @@ void RecruitTree(){
 
       for(int spp=1;spp<=nbspp;spp++){  // lists all the species with a seed present at given site...
         if(_Rrecruit){
+          if (((LAI3D[0][site+SBORD]<MinLAImax[spp]) && _MinLAImax) || ((LAI3D[0][site+SBORD]<MaxLAImax[spp]) && _MaxLAImax) || !(_MinLAImax && _MaxLAImax)) {
           prob_recruit[spp] =  SPECIES_SEEDS[site][spp]*S[spp].s_recruit_rate;
           if (prob_recruit[spp]>0) spp_withseeds++;  
+          } else {
+          prob_recruit[spp] = 0;
+          }
         } else {
           if(SPECIES_SEEDS[site][spp] > 0) {
           // write species that are present to an extra array
