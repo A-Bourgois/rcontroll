@@ -376,6 +376,8 @@ float  *PROB_S (0); //!< Global vector: !!!TO_DOCUMENT _SEEDTRADEOFF
 float *MinLAImax (0);
 float *MaxLAImax (0);
 double *prob_recruit (0); //!< Global vector: probability of recruitement implemented in v3.1.5 by Bruno, modif Audrey
+float minLAImax_A=10.0;
+float maxLAImax_A=0.0;
 #endif
 
 
@@ -4667,9 +4669,9 @@ void InitialiseLookUpLAImax(){
   
   for(int spp = 1; spp < nbspp + 1; spp++){
 
-#ifdef Audrey 
-float minLAImax=10.0;
-float maxLAImax=0.0;
+#ifdef Audrey
+float minLAImax_A=10.0;
+float maxLAImax_A=0.0;
 #endif
 
       
@@ -4686,6 +4688,7 @@ float maxLAImax=0.0;
       pseudotree.t_Rdark = pseudotree.CalcRdark();
       
       pseudotree.CalcLAImax();
+
       
       LookUpLAImax.push_back(pseudotree.t_LAImax);
       if(pseudotree.t_LAImax < minLAImax) minLAImax = pseudotree.t_LAImax;
@@ -4693,21 +4696,26 @@ float maxLAImax=0.0;
       avgLAImax += pseudotree.t_LAImax;
 
 #ifdef Audrey
-minLAImax = fminf(minLAImax, pseudotree.t_LAImax);
-maxLAImax = fmaxf(maxLAImax, pseudotree.t_LAImax);
+// minLAImax_A = fminf(minLAImax_A, pseudotree.t_LAImax);
+// maxLAImax_A = fmaxf(maxLAImax_A, pseudotree.t_LAImax);
+if(pseudotree.t_LAImax < minLAImax_A) minLAImax_A = pseudotree.t_LAImax;
+if(pseudotree.t_LAImax > maxLAImax_A) maxLAImax_A = pseudotree.t_LAImax;
+
+#endif
+    }
+#ifdef Audrey
+MinLAImax[spp]=minLAImax_A ;
+MaxLAImax[spp]=maxLAImax_A ;
 #endif
 
-#ifdef Audrey
-MinLAImax[spp]=minLAImax ;
-MaxLAImax[spp]=maxLAImax ;
-#endif
-}
     }
+
 
   
   avgLAImax *= 1.0/float(10000 * nbspp);
-  Rcout << "Calculated LookUp table for LAImax. Min LAImax is: " << minLAImax << " | max LAImax is: " << maxLAImax << " avg LAImax is: " << avgLAImax << endl;
-Rcout << "MinLAImax: ";
+    Rcout << "Calculated LookUp table for LAImax. Min LAImax is: " << minLAImax << " | max LAImax is: " << maxLAImax << " avg LAImax is: " << avgLAImax << endl;
+  
+  Rcout << "MinLAImax: ";
 for(int spp = 1; spp < nbspp + 1; spp++){
   Rcout << MinLAImax[spp] << "\t" ;
 }

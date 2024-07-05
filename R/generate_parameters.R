@@ -171,7 +171,7 @@ generate_parameters <- function(cols = 200,
                                 distdisperse = 1, 
                                 torus = 1,
                                 MinLAImax = 1, 
-                                MaxLAImax = 0) {
+                                MaxLAImax = 1) {
   # check args
   if (!all(unlist(lapply(
     list(
